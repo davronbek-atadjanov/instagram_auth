@@ -34,6 +34,18 @@ class User(AbstractUser, BaseModel):
     def __str__(self):
         return self.username
 
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+    def create_verify_code(self):
+        code = "".join([str(random.randint(1,100)%10) for _ in range(4)])
+        UserConfirmation.objects.create(
+            user_id=self.id,
+            code=code
+        )
+
+
 
 EMAIL_EXPIRE = 5
 class UserConfirmation(BaseModel):
