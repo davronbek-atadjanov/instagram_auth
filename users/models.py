@@ -1,5 +1,7 @@
 import uuid
 import random
+from datetime import datetime, timedelta
+
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.db import models
@@ -32,5 +34,17 @@ class User(AbstractUser, BaseModel):
     def __str__(self):
         return self.username
 
+
+EMAIL_EXPIRE = 5
 class UserConfirmation(BaseModel):
     code = models.CharField(max_length=4)
+    user = models.ForeignKey('users.User', models.CASCADE, related_name='verify_codes')
+    expiration_time = models.DateTimeField(null=True)
+    is_confirmed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return str(self.__str__())
+
+    def save(self, *args, **kwargs):
+        self.expiration_time = datetime.now() + timedelta(minutes=EMAIL_EXPIRE)
+        super(UserConfirmation,self).save(*args, **kwargs)
