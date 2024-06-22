@@ -71,7 +71,7 @@ class SignUpSerializer(serializers.ModelSerializer):
             # Xato xabari uchun ma'lumotlar tayyorlanadi.
             data = {
                 "success": False,
-                "message": "Bu email dan allaqachon fodalanilgan "
+                "message": "Bu email dan allaqachon foydalanilgan "
                 # O'zbek tilida "Bu email allaqachon foydalanilgan" deb yozilgan.
             }
             # ValidationError chiqariladi va ma'lumotlar unga qo'shiladi.
