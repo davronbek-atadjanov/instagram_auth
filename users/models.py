@@ -46,6 +46,7 @@ class User(AbstractUser, BaseModel):
             user_id=self.id,
             code=code
         )
+        return code
 
     def check_username(self):
         # username maydoni bo'shligini tekshirish
@@ -113,7 +114,7 @@ class UserConfirmation(BaseModel):
     is_confirmed = models.BooleanField(default=False)  # Kod tasdiqlanganligini belgilovchi flag
 
     def __str__(self):
-        return str(self.__str__())
+        return str(self.user.__str__())
 
     def save(self, *args, **kwargs):
         # Tasdiqlash kodining amal qilish muddatini hozirgi vaqtdan EMAIL_EXPIRE daqiqa keyin o‘rnatish
