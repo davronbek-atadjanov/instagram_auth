@@ -46,7 +46,7 @@ class SignUpSerializer(serializers.ModelSerializer):
     @staticmethod
     def auth_validate(data):
         # Kiruvchi ma'lumotlarni tekshirish uchun chop etish
-        print(data)
+        # print(data)
         # Foydalanuvchi kiritgan ma'lumotlarni kichik harflarga o'zgartirish
         user_input = str(data.get('email')).lower()
 
