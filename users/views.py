@@ -7,8 +7,8 @@ from rest_framework.exceptions import ValidationError
 
 from shared.utility import send_email
 from .models import User, NEW, CODE_VERIFIED
-from .serializers import SignUpSerializer
-from rest_framework.generics import CreateAPIView
+from .serializers import SignUpSerializer, ChangeUserInformation
+from rest_framework.generics import CreateAPIView, UpdateAPIView
 
 
 class CreateUserView(CreateAPIView):
@@ -98,3 +98,43 @@ class GetNewVerificationView(APIView):
             }
             # Xatolikni qaytarish (foydalanuvchi hali yangi kod so'rov qilishiga ruxsat berilmaydi)
             raise ValidationError(data)
+
+
+class ChangeUserInformationView(UpdateAPIView):
+    # Foydalanuvchi faqat autentifikatsiyadan o'tgan bo'lishi kerak
+    permission_classes = [IsAuthenticated, ]
+
+    # Ushbu viewda foydalaniladigan serializator
+    serializer_class = ChangeUserInformation
+
+    # Ushbu view faqat 'patch' va 'put' HTTP metodlarini qo'llab-quvvatlaydi
+    http_method_names = ['patch', 'put']
+
+    # Joriy foydalanuvchi obyektini olish
+    def get_object(self):
+        return self.request.user
+
+    # Foydalanuvchi ma'lumotlarini yangilash
+    def update(self, request, *args, **kwargs):
+        super(ChangeUserInformationView, self).update(request, *args, **kwargs)
+
+        # Yangilangan ma'lumotlarni qaytarish uchun javob yaratish
+        data = {
+            "success": True,
+            "message": "User updated successfully",
+            "auth_status": request.user.auth_status
+        }
+        return Response(data, status=200)
+
+    # Foydalanuvchi ma'lumotlarini qisman yangilash
+    def partial_update(self, request, *args, **kwargs):
+        super(ChangeUserInformationView, self).partial_update(request, *args, **kwargs)
+
+        # Qisman yangilangan ma'lumotlarni qaytarish uchun javob yaratish
+        data = {
+            "success": True,
+            "message": "User updated successfully",
+            "auth_status": request.user.auth_status
+        }
+        return Response(data, status=200)
+
