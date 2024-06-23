@@ -1,9 +1,17 @@
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
+from django.core.validators import FileExtensionValidator
+from rest_framework.generics import get_object_or_404
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import AccessToken
 
-from shared.utility import check_email_or_other, send_email
-from .models import User, CODE_VERIFIED, DONE
+from shared.utility import check_email_or_other, send_email, check_input_type
+from .models import User, CODE_VERIFIED, DONE, PHOTO_DONE, NEW
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
+
+
 class SignUpSerializer(serializers.ModelSerializer):
     # Foydalanuvchi identifikatori uchun faqat o'qish mumkin bo'lgan UUID maydoni
     id = serializers.UUIDField(read_only=True)
@@ -174,3 +182,89 @@ class ChangeUserInformation(serializers.Serializer):
         instance.save()
         return instance
 
+class ChangeUserPhotoSerializer(serializers.Serializer):
+    photo = serializers.ImageField(validators=[FileExtensionValidator(allowed_extensions=['png', 'jpeg', 'jpg'])])
+
+    def update(self, instance, validate_data):
+        photo = validate_data.get('photo')
+
+        if photo:
+            instance.photo = photo
+            instance.auth_status = PHOTO_DONE
+            instance.save()
+        return instance
+
+class LoginSerializer(TokenObtainPairSerializer):
+
+    def __init__(self, *args, **kwargs):
+        super(LoginSerializer, self).__init__(*args, **kwargs)
+        self.fields['user_input'] = serializers.CharField(required=True)
+        self.fields['username'] = serializers.CharField(required=False, read_only=True)
+
+    def auth_validate(self, data):
+        global username
+        user_input = data.get('user_input')
+        if check_input_type(user_input) == "username":
+            username = user_input
+        elif check_input_type(user_input) == "email":
+            user = self.get_user(email__iexact=user_input)
+            username = user_input
+        else:
+            data = {
+                "success": False,
+                "message": "Siz username yoki email  jo'natishingiz kerak"
+            }
+
+        authentication_kwargs = {
+            self.username_field: username,
+            'password': data['password']
+        }
+
+        # user statusini tekshiramiz
+        current_user = User.objects.filter(username__iexact=username).first()
+        if current_user is not None and current_user.auth_status in [NEW, CODE_VERIFIED]:
+            raise ValidationError({
+                "success": False,
+                "message": "Siz ro'yxatdan to'liq o'tmagansiz"
+            })
+        user = authenticate(**authentication_kwargs)
+        if user is not None:
+            self.user = user
+        else:
+            raise ValidationError(
+                {
+                    "success": False,
+                    "message": "Kechirasiz, login yoki parolingiz xato,Ilimos qaytadan urinib ko'ring"
+                }
+            )
+
+
+    def validate(self, data):
+        self.auth_validate(data)
+        if self.user.auth_status not in [DONE, PHOTO_DONE]:
+            raise PermissionDenied("Siz login qila olmaysiz, Sizni ruxsatingiz yo'q")
+        data = self.user.token()
+        data['auth_status'] = self.user.auth_status
+        data['fullname'] = self.user.full_name
+        return data
+
+    def get_user(self, **kwargs):
+        users = User.objects.filter(**kwargs)
+        if not users.exists():
+            raise ValidationError({
+                "message": "Bunda akkout topilmadi"
+            })
+        return users.first()
+
+class LoginRefreshSerializer(TokenRefreshSerializer):
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        access_token_instance = AccessToken(data['access'])
+        user_id = access_token_instance['user_id']
+        user = get_object_or_404(User, id=user_id)
+        update_last_login(None, user)
+        return data
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()

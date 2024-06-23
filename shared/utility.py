@@ -6,7 +6,7 @@ from django.template.loader import render_to_string
 from rest_framework.exceptions import ValidationError
 
 email_regex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b')
-
+username_regex = re.compile(r"^[a-zA-z0-9_.-]+$")
 def check_email_or_other(email_data):
     """
     Tekshiriladigan ma'lumotning email formatiga mos kelishini tekshirish uchun funksiya.
@@ -87,3 +87,16 @@ def send_email(email, code):
             "content_type": "html"
         }
     )
+
+def check_input_type(user_input):
+    if re.fullmatch(email_regex, user_input):
+        user_input = "email"
+    elif re.fullmatch(username_regex, user_input):
+        user_input = "username"
+    else:
+        data = {
+            "success": False,
+            "message": "Username yoki email noto'g'ri kiritilgan"
+        }
+        raise ValidationError(data)
+    return user_input
