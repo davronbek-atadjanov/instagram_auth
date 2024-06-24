@@ -1,9 +1,11 @@
 from datetime import datetime
+
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import permissions
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -11,7 +13,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from shared.utility import send_email
 from .models import User, NEW, CODE_VERIFIED
 from .serializers import SignUpSerializer, ChangeUserInformation, ChangeUserPhotoSerializer, LoginSerializer, \
-    LoginRefreshSerializer, LogoutSerializer
+    LoginRefreshSerializer, LogoutSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
 from rest_framework.generics import CreateAPIView, UpdateAPIView
 
 
@@ -144,9 +146,9 @@ class ChangeUserInformationView(UpdateAPIView):
 
 class ChangeUserPhotoView(UpdateAPIView):
     permission_classes = [IsAuthenticated, ]
-
+    serializer_class = ChangeUserPhotoSerializer
     def put(self, request, *args, **kwargs):
-        serializer = ChangeUserPhotoSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         if serializer.is_valid():
             user = request.user
@@ -154,6 +156,9 @@ class ChangeUserPhotoView(UpdateAPIView):
             return Response({
                 "message": "Rasm muvaffaqiyatli yangilandi"
             })
+    def get_serializer_class(self):
+        return self.serializer_class
+
 
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
@@ -180,3 +185,50 @@ class LogOutView(APIView):
             return Response(data, status=206)
         except TokenError:
             return Response(status=400)
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny, ]
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=self.request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data.get('email')
+        user = serializer.validated_data.get('user')
+        code = user.create_verify_code()
+        send_email(email, code)
+
+        return Response(
+            {
+                "success": True,
+                "message": "Tasqtilash kodi muvvaqiyatli yuborildi",
+                "access": user.token()['access'],
+                "refresh": user.token()['refresh_token'],
+                "user_status": user.auth_status
+            }, status=200
+        )
+
+
+class ResetPasswordView(UpdateAPIView):
+    permission_classes = [IsAuthenticated, ]
+    serializer_class = ResetPasswordSerializer
+    http_method_names = ['put', 'patch']
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        response = super(ResetPasswordView, self).update(request, *args, **kwargs)
+        try:
+            user = User.objects.get(id=response.data.get('id'))
+        except ObjectDoesNotExist as e:
+            raise NotFound(detail="User not found")
+        return Response({
+            "success": True,
+            "message": "Parolingiz muvaffaqiyatli yangilandi",
+            "access": user.token()['access'],
+            "refresh": user.token()['refresh_token']
+        })
+
+
+
